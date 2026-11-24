@@ -157,6 +157,10 @@ class UltraSyncProblemBinarySensor(UltraSyncEntity, BinarySensorEntity):
                 name = (zone.get("name") or "").strip() or f"Zone {zone['bank'] + 1}"
                 affected.append(f"{name}: {zone['status']}")
 
+        for fault in self.coordinator.system_faults:
+            if classify_problem(fault) == self._key:
+                affected.append(f"Panel: {fault}")
+
         for area in self.coordinator.areas:
             status = area.get("status")
             kind = classify_problem(status)
