@@ -1,6 +1,10 @@
 """Defines the base UltraSync entity."""
 
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.device_registry import (
+    CONNECTION_NETWORK_MAC,
+    DeviceInfo,
+    format_mac,
+)
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
@@ -23,11 +27,23 @@ def panel_device_info(coordinator, entry_id: str, entry_name: str) -> DeviceInfo
     # identified keeps the generic details
     manufacturer, model = PANEL_MODELS.get(hub.vendor, ("UltraSync", None))
 
+    # Installer logins can also read these from the panel
+    panel_info = getattr(coordinator, "panel_info", None) or {}
+
     sw_version = None
     if hub.version and hub.version != "0.000":
         sw_version = hub.version
         if hub.release and hub.release != "0":
             sw_version = f"{sw_version}-{hub.release}"
+
+    # The panel's own firmware is more exact than its web interface version
+    sw_version = panel_info.get("firmware") or sw_version
+
+    extra = {}
+    if panel_info.get("mac"):
+        mac = format_mac(panel_info["mac"])
+        extra["connections"] = {(CONNECTION_NETWORK_MAC, mac)}
+        extra["serial_number"] = mac
 
     return DeviceInfo(
         identifiers={(DOMAIN, entry_id)},
@@ -35,6 +51,8 @@ def panel_device_info(coordinator, entry_id: str, entry_name: str) -> DeviceInfo
         manufacturer=manufacturer,
         model=model,
         sw_version=sw_version,
+        hw_version=panel_info.get("hardware"),
+        **extra,
         # Adds a "Visit" link to the device page
         configuration_url=hub.url,
     )

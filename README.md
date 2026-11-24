@@ -82,6 +82,10 @@ History sensors are timestamp sensors: the state is the time of the latest histo
 
 The zone, area, output and history sensors are listed under **Diagnostics** on the device page, since the alarm control panel and binary sensors show the same things.
 
+### Firmware, hardware and MAC (installer logins)
+
+ComNav panels show their firmware, hardware version and MAC address only on installer pages. If the login you gave Home Assistant is an **installer** login, the device page also shows the panel's firmware, hardware version and MAC address (the MAC is also used as the serial number). With any other login these are simply left out. The integration only reads these pages, once, when it starts.
+
 ### Binary Sensors, Switches and Buttons
 
 On top of the sensors above, the integration adds:
