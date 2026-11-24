@@ -2,6 +2,28 @@
 
 DOMAIN = "ultrasync"
 
+# What each zone is (a door, a motion sensor, ...), chosen in the options. It
+# maps the zone's number (as text) to one of ZONE_TYPES.
+CONF_ZONE_TYPES = "zone_types"
+
+# The choices, which are Home Assistant binary sensor device classes. "none"
+# keeps the plain on/off sensor.
+ZONE_TYPE_NONE = "none"
+ZONE_TYPES = (
+    ZONE_TYPE_NONE,
+    "door",
+    "window",
+    "garage_door",
+    "opening",
+    "motion",
+    "occupancy",
+    "smoke",
+    "gas",
+    "moisture",
+    "vibration",
+    "safety",
+)
+
 # Scan Time (in seconds)
 DEFAULT_SCAN_INTERVAL = 1
 

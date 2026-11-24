@@ -36,7 +36,26 @@
             "init": {
                 "data": {
                     "scan_interval": "Update frequency (seconds)"
-                }
+                },
+                "description": "Choose what each zone is, so Home Assistant shows it as Open / Closed or Detected / Clear instead of On / Off."
+            }
+        }
+    },
+    "selector": {
+        "zone_type": {
+            "options": {
+                "none": "Not set (on / off)",
+                "door": "Door",
+                "window": "Window",
+                "garage_door": "Garage door",
+                "opening": "Opening",
+                "motion": "Motion (PIR)",
+                "occupancy": "Occupancy",
+                "smoke": "Smoke",
+                "gas": "Gas",
+                "moisture": "Moisture",
+                "vibration": "Vibration",
+                "safety": "Safety"
             }
         }
     }

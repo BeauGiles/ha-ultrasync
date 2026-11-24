@@ -28,7 +28,7 @@ from .const import (
 )
 from .coordinator import UltraSyncDataUpdateCoordinator
 
-PLATFORMS = ["sensor", "alarm_control_panel"]
+PLATFORMS = ["sensor", "alarm_control_panel", "binary_sensor"]
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:

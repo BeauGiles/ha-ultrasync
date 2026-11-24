@@ -54,6 +54,9 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
         # The areas from the last successful poll (used by the alarm panels)
         self.areas = []
 
+        # The zones from the last successful poll (used by the binary sensors)
+        self.zones = []
+
         # The panel read currently running in a worker thread (if any)
         self._poll = None
 
@@ -108,8 +111,9 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
 
         # Update our details
         if details:
-            # Keep the latest areas for the alarm panels
+            # Keep the latest areas and zones for the alarm panels and binary sensors
             self.areas = details["areas"]
+            self.zones = details["zones"]
 
             async_dispatcher_send(
                 self.hass,

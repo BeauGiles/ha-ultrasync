@@ -13,6 +13,9 @@ from homeassistant.const import (
 )
 from homeassistant.core import callback, HomeAssistant
 from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
@@ -21,7 +24,14 @@ from homeassistant.helpers.typing import ConfigType
 import ultrasync
 import voluptuous as vol
 
-from .const import DEFAULT_NAME, DEFAULT_SCAN_INTERVAL
+from .const import (
+    CONF_ZONE_TYPES,
+    DATA_COORDINATOR,
+    DEFAULT_NAME,
+    DEFAULT_SCAN_INTERVAL,
+    ZONE_TYPE_NONE,
+    ZONE_TYPES,
+)
 from .const import DOMAIN  # pylint: disable=unused-import
 
 _LOGGER = logging.getLogger(__name__)
@@ -185,10 +195,42 @@ class UltraSyncOptionsFlowHandler(config_entries.OptionsFlow):
         # allow it to be assigned, so keep our own reference.
         self._entry = config_entry
 
+    def _zones(self) -> list:
+        """Return the panel's zones, if the integration is running."""
+        coordinator = (
+            self.hass.data.get(DOMAIN, {})
+            .get(self._entry.entry_id, {})
+            .get(DATA_COORDINATOR)
+        )
+        return list(coordinator.zones) if coordinator else []
+
+    @staticmethod
+    def _zone_label(zone: dict) -> str:
+        """Return the name a zone's setting is shown under."""
+        name = (zone.get("name") or "").strip()
+        number = zone["bank"] + 1
+        return f"Zone {number}: {name}" if name else f"Zone {number}"
+
     async def async_step_init(self, user_input: Optional[ConfigType] = None):
         """Manage UltraSync options."""
+        zones = self._zones()
+        labels = {self._zone_label(zone): zone["bank"] + 1 for zone in zones}
+        saved_types = dict(self._entry.options.get(CONF_ZONE_TYPES, {}))
+
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            # Keep what was saved for any zone not shown (the integration was
+            # not running), and take what was chosen for the others
+            zone_types = dict(saved_types)
+            for label, number in labels.items():
+                chosen = user_input.pop(label, ZONE_TYPE_NONE)
+                if chosen == ZONE_TYPE_NONE:
+                    zone_types.pop(str(number), None)
+                else:
+                    zone_types[str(number)] = chosen
+
+            return self.async_create_entry(
+                title="", data={**user_input, CONF_ZONE_TYPES: zone_types}
+            )
 
         options = {
             vol.Optional(
@@ -200,5 +242,19 @@ class UltraSyncOptionsFlowHandler(config_entries.OptionsFlow):
                 # non-stop, and very large numbers stop the setup loading.
             ): vol.All(vol.Coerce(int), vol.Range(min=1, max=86400)),
         }
+
+        # One drop-down for each zone: what kind of sensor it is
+        for label, number in labels.items():
+            options[
+                vol.Optional(
+                    label, default=saved_types.get(str(number), ZONE_TYPE_NONE)
+                )
+            ] = SelectSelector(
+                SelectSelectorConfig(
+                    options=list(ZONE_TYPES),
+                    mode=SelectSelectorMode.DROPDOWN,
+                    translation_key="zone_type",
+                )
+            )
 
         return self.async_show_form(step_id="init", data_schema=vol.Schema(options))

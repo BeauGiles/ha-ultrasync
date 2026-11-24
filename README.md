@@ -47,6 +47,8 @@ If your panel moves to a new address, or you change the user or PIN it logs in w
 
 Click **Configure** on the UltraSync integration to change the **Update frequency (seconds)**: how often Home Assistant reads your panel. The default is 1 second; it can be set from 1 up to 86400 (one day).
 
+The same dialog lists each zone, so you can choose **what it is** (door, window, garage door, opening, motion, occupancy, smoke, gas, moisture, vibration or safety). See [Zone Binary Sensors](#zone-binary-sensors).
+
 ### Sensor
 
 Sensors are dynamically generated on the fly.
@@ -79,6 +81,14 @@ There are several states each Zone and Area sensor can be at, but usually they w
 The state of Output sensors will ALWAYS remain `0` whether it has been turned on or off. This is normal, the Output sensor simply acts as an entity to activate the `switch` service.
 
 The state of History sensors will be updated whenever the Area sensor changes, so generally will be either one of `Turn off` or `Turn on`.
+
+### Zone Binary Sensors
+
+Each zone also has a **binary sensor** (for example `binary_sensor.ultrasync_front_door`, named after the zone on the panel), which is on while the zone is `Not Ready` (open or triggered) and off otherwise. The panel's own status text is available in the `status` attribute.
+
+A binary sensor suits a zone better than the text sensor above: Home Assistant shows it as **Open / Closed** or **Detected / Clear** instead of the raw status, picks a matching icon, and automations, dashboards, history and voice assistants can treat it like any other door, window or motion sensor, without comparing to the status text such as `Ready`.
+
+To choose what each zone is, click **Configure** on the integration and pick a type for each zone. Zones left as **Not set** stay a plain on / off sensor. You can also change a single sensor's device class from its own settings.
 
 ### Alarm Control Panel
 
