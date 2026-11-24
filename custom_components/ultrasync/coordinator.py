@@ -3,6 +3,7 @@ import asyncio
 from datetime import timedelta
 import logging
 import threading
+import time
 
 import requests
 
@@ -25,6 +26,10 @@ import ultrasync
 from .const import DOMAIN, SENSOR_UPDATE_LISTENER
 
 _LOGGER = logging.getLogger(__name__)
+
+# The library only reads the outputs page when it logs in, so a ComNav
+# panel's outputs are read again this often (and right after a command)
+OUTPUT_REFRESH_SECONDS = 30
 
 # How many reads in a row the panel must refuse, while still answering on the
 # network, before we ask the user to log in again. A panel also refuses a
@@ -72,8 +77,14 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
         # share one panel session; this lock makes them take turns
         self.hub_lock = threading.Lock()
 
-        # The areas from the last successful poll (used by the alarm panels)
+        # The areas, zones and outputs from the last successful poll (used
+        # by the alarm panels, binary sensors, switches and buttons)
         self.areas = []
+        self.zones = []
+        self.outputs = []
+
+        # When the outputs were last read (monotonic seconds)
+        self._outputs_read = 0.0
 
         # The panel read currently running in a worker thread (if any)
         self._poll = None
@@ -150,6 +161,8 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
         if details:
             # Keep the latest areas for the alarm panels
             self.areas = details["areas"]
+            self.zones = details["zones"]
+            self.outputs = details["outputs"]
 
             async_dispatcher_send(
                 self.hass,
@@ -251,6 +264,22 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
         # Return our response
         return response
 
+    async def async_hub_call(self, method, *args, **kwargs) -> bool:
+        """Run a panel command in a worker thread, between polls.
+
+        Returns what the command returned (True when the panel accepted it).
+        """
+
+        def _call() -> bool:
+            with self.hub_lock:
+                return method(*args, **kwargs)
+
+        return await self.hass.async_add_executor_job(_call)
+
+    def mark_outputs_stale(self) -> None:
+        """Read the outputs again on the next poll (after a command)."""
+        self._outputs_read = 0.0
+
     def _details(self) -> dict:
         """Read the panel details, waiting for any alarm command to finish."""
         with self.hub_lock:
@@ -258,6 +287,16 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
             if not details:
                 self._panel_reachable = self._can_reach_panel()
                 return details
+
+            # Outputs are only read at login, so read them again now and then
+            # (ComNav panels are the only ones that have them)
+            if (
+                self.hub.vendor == "comnav"
+                and time.monotonic() - self._outputs_read >= OUTPUT_REFRESH_SECONDS
+            ):
+                if self.hub.output_control():
+                    self._outputs_read = time.monotonic()
+                    details["outputs"] = list(self.hub.outputs.values())
 
             # The library only reads the history page when it logs in. A
             # new history line comes with an area change (for example
