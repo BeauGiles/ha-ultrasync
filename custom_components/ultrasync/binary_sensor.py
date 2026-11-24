@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from ultrasync.common import ZoneStatus
 
-from .const import DATA_COORDINATOR, DEFAULT_NAME, DOMAIN
+from .const import CONF_ZONE_TYPES, DATA_COORDINATOR, DEFAULT_NAME, DOMAIN
 from .coordinator import UltraSyncDataUpdateCoordinator
 from .entity import UltraSyncEntity
 
@@ -62,8 +62,17 @@ async def async_setup_entry(
     ][DATA_COORDINATOR]
     entry_name = entry.data.get(CONF_NAME, DEFAULT_NAME)
 
+    # What the user said each zone is (zone number as text -> device class)
+    zone_types = entry.options.get(CONF_ZONE_TYPES, {})
+
     entities: list[BinarySensorEntity] = [
-        UltraSyncZoneBinarySensor(coordinator, entry.entry_id, entry_name, zone)
+        UltraSyncZoneBinarySensor(
+            coordinator,
+            entry.entry_id,
+            entry_name,
+            zone,
+            zone_types.get(str(zone["bank"] + 1)),
+        )
         for zone in coordinator.zones
     ]
     entities.extend(
@@ -84,8 +93,15 @@ class UltraSyncZoneBinarySensor(UltraSyncEntity, BinarySensorEntity):
         entry_id: str,
         entry_name: str,
         zone: dict[str, Any],
+        zone_type: Optional[str] = None,
     ) -> None:
         """Initialize the binary sensor for one zone."""
+        try:
+            self._attr_device_class = BinarySensorDeviceClass(zone_type)
+        except ValueError:
+            # Not chosen (or not a class we know): a plain on/off sensor
+            self._attr_device_class = None
+
         # The zone's position on the panel (starting at 0)
         self._bank = zone["bank"]
         self._attr_unique_id = f"{entry_id}_zone_binary_{self._bank}"
