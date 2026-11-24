@@ -9,6 +9,10 @@ from .const import DOMAIN
 class UltraSyncEntity(CoordinatorEntity):
     """Base class for a UltraSync entity."""
 
+    # Entity names are just the item's own name (for example "Front Door");
+    # Home Assistant puts the device name in front of it
+    _attr_has_entity_name = True
+
     def __init__(
         self,
         *,

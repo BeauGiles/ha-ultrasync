@@ -3,11 +3,16 @@
 import logging
 from typing import Callable, List
 
+from datetime import datetime
+from typing import Optional
+
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_NAME
+from homeassistant.const import CONF_NAME, EntityCategory
 from homeassistant.core import callback, HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity
+from homeassistant.util import dt as dt_util
 
 from .entity import UltraSyncEntity
 from .const import (
@@ -20,6 +25,12 @@ from .const import (
 from .coordinator import UltraSyncDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+# Icons for each kind of sensor
+ICON_AREA = "mdi:shield-home"
+ICON_ZONE = "mdi:motion-sensor"
+ICON_OUTPUT = "mdi:electric-switch"
+ICON_HISTORY = "mdi:history"
 
 
 async def async_setup_entry(
@@ -39,8 +50,9 @@ async def async_setup_entry(
         entry.entry_id,
         entry.data[CONF_NAME],
         "area01_state",
-        "Area1State",
-        name_suffix=" State",
+        "Area 1 status",
+        name_suffix=" status",
+        icon=ICON_AREA,
     )
 
     async_add_entities([hass.data[DOMAIN][entry.entry_id][SENSORS]["area01_state"]])
@@ -78,8 +90,9 @@ async def async_setup_entry(
                     entry.data[CONF_NAME],
                     sensor_id,
                     # Friendly Name
-                    "Area{}State".format(bank_no + 1),
-                    name_suffix=" State",
+                    "Area {} status".format(bank_no + 1),
+                    name_suffix=" status",
+                    icon=ICON_AREA,
                 )
 
                 # Add our new area sensor
@@ -104,7 +117,9 @@ async def async_setup_entry(
                     entry.data[CONF_NAME],
                     sensor_id,
                     # Friendly Name
-                    "Zone{}State".format(bank_no + 1),
+                    "Zone {} status".format(bank_no + 1),
+                    name_suffix=" status",
+                    icon=ICON_ZONE,
                 )
 
                 # Add our new zone sensor
@@ -130,7 +145,9 @@ async def async_setup_entry(
                     entry.data[CONF_NAME],
                     sensor_id,
                     # Friendly Name
-                    "Output{}State".format(output_index),
+                    "Output {} status".format(output_index),
+                    name_suffix=" status",
+                    icon=ICON_OUTPUT,
                 )
 
                 # Add our new output sensor
@@ -151,13 +168,14 @@ async def async_setup_entry(
             detected_sensors.add(sensor_id)
             if sensor_id not in sensors:
                 # hash our entry
-                sensors[sensor_id] = UltraSyncSensor(
+                sensors[sensor_id] = UltraSyncHistorySensor(
                     coordinator,
                     entry.entry_id,
                     entry.data[CONF_NAME],
                     sensor_id,
                     # Friendly Name
-                    "History {} State".format(history_name),
+                    "{} history".format(history_name),
+                    icon=ICON_HISTORY,
                 )
 
                 # Add our new history sensor
@@ -186,8 +204,12 @@ async def async_setup_entry(
     )
 
 
-class UltraSyncSensor(UltraSyncEntity):
+class UltraSyncSensor(UltraSyncEntity, SensorEntity):
     """Representation of a UltraSync sensor."""
+
+    # These repeat what the alarm panel and binary sensors already show, so
+    # they are listed under Diagnostics on the device page
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(
         self,
@@ -197,6 +219,7 @@ class UltraSyncSensor(UltraSyncEntity):
         sensor_type: str,
         sensor_name: str,
         name_suffix: str = "",
+        icon: Optional[str] = None,
     ):
         """Initialize a new UltraSync sensor."""
 
@@ -207,6 +230,7 @@ class UltraSyncSensor(UltraSyncEntity):
         self._entry_name = entry_name
         self._fallback_name = sensor_name
         self._name_suffix = name_suffix
+        self._attr_icon = icon
         self._unique_id = f"{entry_id}_{sensor_type}"
 
         # Initialize our Attributes
@@ -216,7 +240,7 @@ class UltraSyncSensor(UltraSyncEntity):
             coordinator=coordinator,
             entry_id=entry_id,
             entry_name=entry_name,
-            name=f"{entry_name} {sensor_name}",
+            name=sensor_name,
         )
 
     def __setitem__(self, key, value):
@@ -230,9 +254,9 @@ class UltraSyncSensor(UltraSyncEntity):
         # a zone or area on the panel shows up here
         panel_name = self.__attributes.get("name")
         if isinstance(panel_name, str) and panel_name.strip():
-            return f"{self._entry_name} {panel_name.strip()}{self._name_suffix}"
+            return f"{panel_name.strip()}{self._name_suffix}"
 
-        return f"{self._entry_name} {self._fallback_name}"
+        return self._fallback_name
 
     @property
     def unique_id(self) -> str:
@@ -245,7 +269,7 @@ class UltraSyncSensor(UltraSyncEntity):
         return self.__attributes
 
     @property
-    def state(self):
+    def native_value(self):
         """Return the state of the sensor."""
         value = self.coordinator.data.get(self._sensor_type)
         if value is None:
@@ -253,3 +277,30 @@ class UltraSyncSensor(UltraSyncEntity):
             return None
 
         return value
+
+
+class UltraSyncHistorySensor(UltraSyncSensor):
+    """The time of the latest history line for an area.
+
+    The action, user and area name are in the attributes.
+    """
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    @property
+    def native_value(self) -> Optional[datetime]:
+        """Return when the latest history line happened."""
+        timestamp = self.extra_state_attributes.get("timestamp")
+        if not isinstance(timestamp, str):
+            return None
+
+        parsed = dt_util.parse_datetime(timestamp)
+        if parsed is None:
+            return None
+
+        # The panel gives its own clock time without a time zone; take it to
+        # be in the time zone Home Assistant is set to
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=dt_util.get_default_time_zone())
+
+        return parsed
