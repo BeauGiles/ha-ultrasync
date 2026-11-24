@@ -4,7 +4,8 @@ import asyncio
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SCAN_INTERVAL
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
 from ultrasync import AlarmScene
 import voluptuous as vol
 
@@ -102,54 +103,70 @@ def _async_register_services(
 ) -> None:
     """Register integration-level services."""
 
-    def away(call) -> None:
-        """Service call to set alarm system to 'away' mode in UltraSync Hub."""
-        coordinator.hub.set_alarm(state=AlarmScene.AWAY)
+    async def _send(method, *args, **kwargs) -> None:
+        """Send a command between polls, and refresh.
 
-    def stay(call) -> None:
-        """Service call to set alarm system to 'stay' mode in UltraSync Hub."""
-        coordinator.hub.set_alarm(state=AlarmScene.STAY)
-        
-    def fire(call) -> None:
-        """Service call to set alarm system to 'fire' mode in UltraSync Hub."""
-        coordinator.hub.set_alarm(state=AlarmScene.FIRE)
+        Raises an error if the panel refused it, so the caller sees it fail.
+        """
+        if not await coordinator.async_hub_call(method, *args, **kwargs):
+            raise HomeAssistantError("UltraSync did not accept the command")
 
-    def medical(call) -> None:
-        """Service call to set alarm system to 'medical' mode in UltraSync Hub."""
-        coordinator.hub.set_alarm(state=AlarmScene.MEDICAL)
+        await coordinator.async_request_refresh()
 
-    def panic(call) -> None:
-        """Service call to set alarm system to 'panic' mode in UltraSync Hub."""
-        coordinator.hub.set_alarm(state=AlarmScene.PANIC)
+    def _alarm_service(scene: str):
+        """Return a service handler that sets every area to a scene."""
 
-    def disarm(call) -> None:
-        """Service call to disable alarm in UltraSync Hub."""
-        coordinator.hub.set_alarm(state=AlarmScene.DISARMED)
+        async def handler(call: ServiceCall) -> None:
+            await _send(coordinator.hub.set_alarm, state=scene)
 
-    def bypass(call) -> None:
+        return handler
+
+    async def bypass(call: ServiceCall) -> None:
         """Service call to bypass a zone in UltraSync Hub."""
-        coordinator.hub.set_zone_bypass(state=True, zone=call.data['zone'])
+        await _send(coordinator.hub.set_zone_bypass, state=True, zone=call.data["zone"])
 
-    def unbypass(call) -> None:
+    async def unbypass(call: ServiceCall) -> None:
         """Service call to unbypass a zone in UltraSync Hub."""
-        coordinator.hub.set_zone_bypass(state=False, zone=call.data['zone'])
+        await _send(coordinator.hub.set_zone_bypass, state=False, zone=call.data["zone"])
 
-    def switch(call) -> None:
+    async def switch(call: ServiceCall) -> None:
         """Service call to switch on/off an output control in UltraSync Hub."""
-        coordinator.hub.set_output_control(output=call.data['output'], state=call.data['state'])
+        # Outputs are only read now and then, so read them again after this
+        coordinator.mark_outputs_stale()
+        await _send(
+            coordinator.hub.set_output_control,
+            output=call.data["output"],
+            state=call.data["state"],
+        )
 
-    hass.services.async_register(DOMAIN, SERVICE_AWAY, away, schema=vol.Schema({}))
-    hass.services.async_register(DOMAIN, SERVICE_STAY, stay, schema=vol.Schema({}))
-    hass.services.async_register(DOMAIN, SERVICE_FIRE, fire, schema=vol.Schema({}))
-    hass.services.async_register(DOMAIN, SERVICE_MEDICAL, medical, schema=vol.Schema({}))
-    hass.services.async_register(DOMAIN, SERVICE_PANIC, panic, schema=vol.Schema({}))
-    hass.services.async_register(DOMAIN, SERVICE_DISARM, disarm, schema=vol.Schema({}))
-    hass.services.async_register(DOMAIN, SERVICE_BYPASS, bypass)
-    hass.services.async_register(DOMAIN, SERVICE_UNBYPASS, unbypass)
-    hass.services.async_register(DOMAIN, SERVICE_SWITCH, switch, schema=vol.Schema({
-        vol.Required('output'): vol.Coerce(int),
-        vol.Required('state'): vol.Coerce(int),
-    }))
+    for service, scene in (
+        (SERVICE_AWAY, AlarmScene.AWAY),
+        (SERVICE_STAY, AlarmScene.STAY),
+        (SERVICE_FIRE, AlarmScene.FIRE),
+        (SERVICE_MEDICAL, AlarmScene.MEDICAL),
+        (SERVICE_PANIC, AlarmScene.PANIC),
+        (SERVICE_DISARM, AlarmScene.DISARMED),
+    ):
+        hass.services.async_register(
+            DOMAIN, service, _alarm_service(scene), schema=vol.Schema({})
+        )
+
+    # The zone selector can send a number like 1.0; the panel wants a whole one
+    zone_schema = vol.Schema({vol.Required("zone"): vol.Coerce(int)})
+    hass.services.async_register(DOMAIN, SERVICE_BYPASS, bypass, schema=zone_schema)
+    hass.services.async_register(DOMAIN, SERVICE_UNBYPASS, unbypass, schema=zone_schema)
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SWITCH,
+        switch,
+        schema=vol.Schema(
+            {
+                vol.Required("output"): vol.Coerce(int),
+                vol.Required("state"): vol.Coerce(int),
+            }
+        ),
+    )
+
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Handle options update."""
