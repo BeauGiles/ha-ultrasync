@@ -39,9 +39,11 @@ def panel_device_info(coordinator, entry_id: str, entry_name: str) -> DeviceInfo
     # The panel's own firmware is more exact than its web interface version
     sw_version = panel_info.get("firmware") or sw_version
 
+    # The panel's own MAC wins over one typed in by the user
     extra = {}
-    if panel_info.get("mac"):
-        mac = format_mac(panel_info["mac"])
+    raw_mac = panel_info.get("mac") or getattr(coordinator, "manual_mac", None)
+    if raw_mac:
+        mac = format_mac(raw_mac)
         extra["connections"] = {(CONNECTION_NETWORK_MAC, mac)}
         extra["serial_number"] = mac
 

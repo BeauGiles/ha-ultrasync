@@ -18,7 +18,11 @@
         "data": {
           "host": "[%key:common::config_flow::data::host%]",
           "username": "[%key:common::config_flow::data::username%]",
-          "pin": "[%key:common::config_flow::data::pin%]"
+          "pin": "[%key:common::config_flow::data::pin%]",
+          "mac": "MAC address (optional)"
+        },
+        "data_description": {
+          "mac": "Shown on the device page. Leave empty if you don't want one."
         }
       },
       "reauth_confirm": {
@@ -31,7 +35,8 @@
       }
     },
     "error": {
-      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]"
+      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+      "invalid_mac": "Enter a MAC address such as 54:10:EC:07:AB:86"
     },
     "abort": {
       "single_instance_allowed": "[%key:common::config_flow::abort::single_instance_allowed%]",

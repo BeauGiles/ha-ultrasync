@@ -1,5 +1,6 @@
 """Config flow for the Interlogix/Hills ComNav UltraSync Hub."""
 import logging
+import re
 from typing import Any, Dict, Optional
 
 from homeassistant import config_entries
@@ -21,7 +22,7 @@ from homeassistant.helpers.typing import ConfigType
 import ultrasync
 import voluptuous as vol
 
-from .const import DEFAULT_NAME, DEFAULT_SCAN_INTERVAL
+from .const import CONF_MAC, DEFAULT_NAME, DEFAULT_SCAN_INTERVAL
 from .const import DOMAIN  # pylint: disable=unused-import
 
 _LOGGER = logging.getLogger(__name__)
@@ -44,8 +45,12 @@ REAUTH_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_USERNAME): str,
         vol.Required(CONF_PIN): PIN_SELECTOR,
+        vol.Optional(CONF_MAC): str,
     }
 )
+
+# 6 pairs of hex digits, with or without separators
+MAC_RE = re.compile(r"^([0-9a-f]{2}[:-]?){5}[0-9a-f]{2}$", re.I)
 
 
 class AuthFailureException(IOError):
@@ -176,6 +181,12 @@ class UltraSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
+            # An optional MAC address, only checked for being a MAC
+            mac = (user_input.get(CONF_MAC) or "").strip()
+            if mac and not MAC_RE.match(mac):
+                errors[CONF_MAC] = "invalid_mac"
+
+        if user_input is not None and not errors:
             # Only save the new details once they can log in to the panel.
             try:
                 await self.hass.async_add_executor_job(
@@ -205,8 +216,15 @@ class UltraSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 # the details stayed the same. The state is read first,
                 # because saving starts the reload straight away.
                 was_loaded = entry.state is ConfigEntryState.LOADED
+                data = {**entry.data, **user_input}
+                if mac:
+                    data[CONF_MAC] = mac
+                else:
+                    # Left empty: forget any MAC typed in earlier
+                    data.pop(CONF_MAC, None)
+
                 self.hass.config_entries.async_update_entry(
-                    entry, title=title, data={**entry.data, **user_input}
+                    entry, title=title, data=data
                 )
                 if not was_loaded:
                     self.hass.config_entries.async_schedule_reload(entry.entry_id)
