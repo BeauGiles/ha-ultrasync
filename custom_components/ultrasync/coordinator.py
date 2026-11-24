@@ -32,10 +32,13 @@ _LOGGER = logging.getLogger(__name__)
 # panel's outputs are read again this often (and right after a command)
 OUTPUT_REFRESH_SECONDS = 30
 
-# How many reads in a row the panel must refuse, while still answering on the
-# network, before we ask the user to log in again. A panel also refuses a
-# login for a moment when it has run out of sessions, so one miss proves little.
-AUTH_FAILURES_BEFORE_REAUTH = 3
+# How long the panel must keep refusing the login, while still answering on
+# the network, before we ask the user to log in again. A panel also refuses a
+# login for a while when it has run out of sessions or another login is
+# using the same user, so a short run of misses proves little. (A count of
+# reads would not do: at the default of one read per second it is over in
+# a few seconds.)
+AUTH_REFUSED_SECONDS = 300
 
 
 # The installer-only pages that show the panel's firmware, hardware and MAC
@@ -105,7 +108,9 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
         # Whether the panel answered on the network during the last failed
         # read, and how many reads in a row failed that way
         self._panel_reachable = False
-        self._auth_failures = 0
+
+        # When the current run of refused logins began (monotonic seconds)
+        self._refused_since = None
 
         # Polls and alarm panel commands run in different worker threads, but
         # share one panel session; this lock makes them take turns
@@ -179,22 +184,29 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
             # A panel that answers but keeps refusing the login most likely
             # has a changed PIN or username: ask the user to log in again.
             # An offline panel only counts as a failed update.
-            if self._panel_reachable:
-                self._auth_failures += 1
-            else:
-                self._auth_failures = 0
+            if not self._panel_reachable:
+                self._refused_since = None
+
+            elif self._refused_since is None:
+                self._refused_since = time.monotonic()
 
             # The very first read has no earlier good data, so it does not
-            # wait for repeated misses
-            limit = 1 if not self._init else AUTH_FAILURES_BEFORE_REAUTH
-            if self._auth_failures >= limit:
+            # wait
+            refused_for = (
+                time.monotonic() - self._refused_since
+                if self._refused_since is not None
+                else None
+            )
+            if refused_for is not None and (
+                not self._init or refused_for >= AUTH_REFUSED_SECONDS
+            ):
                 raise ConfigEntryAuthFailed(
                     "The UltraSync panel refused the saved login"
                 )
 
             raise UpdateFailed("Unable to read the UltraSync panel")
 
-        self._auth_failures = 0
+        self._refused_since = None
 
         # Update our details
         if details:
