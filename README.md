@@ -80,6 +80,17 @@ The state of Output sensors will ALWAYS remain `0` whether it has been turned on
 
 The state of History sensors will be updated whenever the Area sensor changes, so generally will be either one of `Turn off` or `Turn on`.
 
+### Binary Sensors, Switches and Buttons
+
+On top of the sensors above, the integration adds:
+
+- **Zone binary sensors**, one per zone and named after the zone on the panel (for example `binary_sensor.ultrasync_front_door`). They are on while the zone is `Not Ready` (open or triggered); the panel's own status text is in the `status` attribute. Change the device class in the entity's settings to suit the zone (door, window, motion, and so on).
+- **Panel problem sensors**: `Tamper`, `Trouble`, `Low battery` and `Zones bypassed`. Each is on while any zone reports that status, and the `zones` attribute lists which. A zone shows only one status at a time, so a zone that is open and tampered shows as `Not Ready`.
+- **Chime switch** per area.
+- **Output switches** (ComNav panels only) to turn outputs on and off. The panel's outputs are read about every 30 seconds, and right after a switch is used.
+- **Zone bypass switches** (ZeroWire, xGen8 and ComNav panels). These are **disabled by default**; enable them in the entity settings.
+- **Fire, Medical and Panic alarm buttons**, which set off a real alarm. These are **disabled by default**.
+
 ### Alarm Control Panel
 
 Each area on your panel also gets an alarm control panel entity, named `{ultrasync_integration}_{area name}` (for example `alarm_control_panel.ultrasync_area_1`). It works with Home Assistant's built-in alarm panel card, so no custom card or template is needed.
