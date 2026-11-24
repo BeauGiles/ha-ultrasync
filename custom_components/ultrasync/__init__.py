@@ -3,7 +3,7 @@
 import asyncio
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_SCAN_INTERVAL
+from homeassistant.const import CONF_HOST, CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from ultrasync import AlarmScene
@@ -27,6 +27,7 @@ from .const import (
     SERVICE_SWITCH
 )
 from .coordinator import UltraSyncDataUpdateCoordinator
+from .host import host_has_credentials, host_title
 
 PLATFORMS = ["sensor", "alarm_control_panel"]
 
@@ -47,6 +48,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             ),
         }
         hass.config_entries.async_update_entry(entry, options=options)
+
+    # An entry named after a host that carries a user name and password would
+    # show them wherever the title is shown, so name it after the host alone
+    host = entry.data.get(CONF_HOST, "")
+    if host_has_credentials(host) and entry.title == host:
+        hass.config_entries.async_update_entry(entry, title=host_title(host))
 
     coordinator = UltraSyncDataUpdateCoordinator(
         hass,

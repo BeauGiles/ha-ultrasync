@@ -23,6 +23,7 @@ import voluptuous as vol
 
 from .const import DEFAULT_NAME, DEFAULT_SCAN_INTERVAL
 from .const import DOMAIN  # pylint: disable=unused-import
+from .host import host_title
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -98,7 +99,7 @@ class UltraSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_abort(reason="unknown")
             else:
                 return self.async_create_entry(
-                    title=user_input[CONF_HOST],
+                    title=host_title(user_input[CONF_HOST]),
                     data=user_input,
                 )
 
@@ -140,9 +141,12 @@ class UltraSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else:
                 # The entry is named after the host when it is first set up.
                 # Follow a new host, unless the user renamed the entry.
+                # (An entry set up before the title hid any user name and
+                # password in the host is named after the whole host.)
+                old_host = entry.data[CONF_HOST]
                 title = (
-                    user_input[CONF_HOST]
-                    if entry.title == entry.data[CONF_HOST]
+                    host_title(user_input[CONF_HOST])
+                    if entry.title in (old_host, host_title(old_host))
                     else entry.title
                 )
 
