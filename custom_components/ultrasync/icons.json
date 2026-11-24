@@ -1,0 +1,43 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "bypassed": {
+        "default": "mdi:shield-check-outline",
+        "state": {
+          "on": "mdi:shield-off-outline"
+        }
+      }
+    },
+    "button": {
+      "fire": {
+        "default": "mdi:fire"
+      },
+      "medical": {
+        "default": "mdi:medical-bag"
+      },
+      "panic": {
+        "default": "mdi:alarm-light"
+      }
+    },
+    "switch": {
+      "chime": {
+        "default": "mdi:bell-off",
+        "state": {
+          "on": "mdi:bell-ring"
+        }
+      },
+      "bypass": {
+        "default": "mdi:shield-check-outline",
+        "state": {
+          "on": "mdi:shield-off-outline"
+        }
+      },
+      "output": {
+        "default": "mdi:electric-switch",
+        "state": {
+          "on": "mdi:electric-switch-closed"
+        }
+      }
+    }
+  }
+}

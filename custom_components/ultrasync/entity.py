@@ -1,5 +1,7 @@
 """Defines the base UltraSync entity."""
 
+from typing import Optional
+
 from homeassistant.helpers.device_registry import (
     CONNECTION_NETWORK_MAC,
     DeviceInfo,
@@ -73,14 +75,20 @@ class UltraSyncEntity(CoordinatorEntity):
         coordinator,
         entry_id: str,
         entry_name: str,
-        name: str,
+        name: Optional[str] = None,
     ) -> None:
-        """Initialize the UltraSync entity."""
+        """Initialize the UltraSync entity.
+
+        Give a name for items that are named after something on the panel
+        (a zone, an output); leave it out when the entity's translation_key
+        provides the name.
+        """
 
         super().__init__(coordinator)
 
         self._entry_id = entry_id
-        self._attr_name = name
+        if name is not None:
+            self._attr_name = name
 
         # Group every entity of this integration under one device, named after
         # what the user called the integration when setting it up

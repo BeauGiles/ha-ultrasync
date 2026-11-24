@@ -78,11 +78,14 @@ class UltraSyncChimeSwitch(UltraSyncSwitch):
         self._attr_unique_id = f"{entry_id}_chime_{self._bank}"
         area_name = (area.get("name") or "").strip() or f"Area {self._bank + 1}"
 
+        # "<area> chime", from strings.json
+        self._attr_translation_key = "chime"
+        self._attr_translation_placeholders = {"area": area_name}
+
         super().__init__(
             coordinator=coordinator,
             entry_id=entry_id,
             entry_name=entry_name,
-            name=f"{area_name} chime",
         )
 
     @property
@@ -123,6 +126,9 @@ class UltraSyncOutputSwitch(UltraSyncSwitch):
         # Outputs are numbered from 1, in the order the panel lists them
         self._number = number
         self._attr_unique_id = f"{entry_id}_output_switch_{number}"
+
+        # The name is the one set on the panel; the key gives the icon
+        self._attr_translation_key = "output"
 
         super().__init__(
             coordinator=coordinator,
@@ -173,11 +179,14 @@ class UltraSyncBypassSwitch(UltraSyncSwitch):
         self._attr_unique_id = f"{entry_id}_bypass_{self._bank}"
         zone_name = (zone.get("name") or "").strip() or f"Zone {self._bank + 1}"
 
+        # "<zone> bypass", from strings.json
+        self._attr_translation_key = "bypass"
+        self._attr_translation_placeholders = {"zone": zone_name}
+
         super().__init__(
             coordinator=coordinator,
             entry_id=entry_id,
             entry_name=entry_name,
-            name=f"{zone_name} bypass",
         )
 
     @property
