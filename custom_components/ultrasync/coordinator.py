@@ -2,6 +2,7 @@
 import asyncio
 from datetime import timedelta
 import logging
+import re
 import threading
 import time
 
@@ -35,6 +36,36 @@ OUTPUT_REFRESH_SECONDS = 30
 # network, before we ask the user to log in again. A panel also refuses a
 # login for a moment when it has run out of sessions, so one miss proves little.
 AUTH_FAILURES_BEFORE_REAUTH = 3
+
+
+# The installer-only pages that show the panel's firmware, hardware and MAC
+# (ComNav panels). Other logins are not allowed to open them.
+FEATURES_PAGE = "/protect/config1.htm"
+NETWORK_PAGE = "/protect/config5.htm"
+
+MAC_RE = re.compile(r'id="mac"[^>]*value="([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})"')
+
+# The read-only boxes on the features page, in the order the panel lists them:
+# device id, firmware, hardware, bootload, web version, voice, language
+READONLY_RE = re.compile(r'<p>[^<]*</p><input[^>]*value="([^"]*)"[^>]*readonly')
+
+
+def parse_installer_info(features: str, network: str) -> dict:
+    """Pick the firmware, hardware and MAC out of the installer pages."""
+    info = {}
+
+    values = READONLY_RE.findall(features or "")
+    if len(values) >= 5:
+        if values[1].strip():
+            info["firmware"] = values[1].strip()
+        if values[2].strip():
+            info["hardware"] = values[2].strip()
+
+    mac = MAC_RE.search(network or "")
+    if mac:
+        info["mac"] = mac.group(1).lower()
+
+    return info
 
 
 def _read_poll_outcome(poll: asyncio.Future) -> None:
@@ -82,6 +113,11 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
         self.areas = []
         self.zones = []
         self.outputs = []
+
+        # Firmware, hardware and MAC from the installer pages. None until
+        # they have been tried (once per start); empty if the login is not
+        # allowed to read them.
+        self.panel_info = None
 
         # When the outputs were last read (monotonic seconds)
         self._outputs_read = 0.0
@@ -276,6 +312,41 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
 
         return await self.hass.async_add_executor_job(_call)
 
+    def _read_page(self, path: str):
+        """Read one panel page, without logging in again if it is refused."""
+        hub = self.hub
+        try:
+            response = hub.session.post(
+                f"{hub.url}{path}",
+                data={"sess": hub.session_id},
+                auth=hub.auth,
+                headers={
+                    "Referer": f"http://{hub.host}/login.htm",
+                    "User-Agent": hub.user_agent,
+                },
+                verify=hub.verify,
+                timeout=hub.timeout,
+                allow_redirects=False,
+            )
+
+        except requests.RequestException:
+            return None
+
+        # A login that is not an installer is turned away (a redirect or an
+        # error), which is expected and not a problem
+        if response.status_code != 200:
+            return None
+
+        return response.content.decode(hub.panel_encoding, errors="replace")
+
+    def _read_installer_info(self) -> dict:
+        """Read the firmware, hardware and MAC, if this login may see them."""
+        info = parse_installer_info(
+            self._read_page(FEATURES_PAGE), self._read_page(NETWORK_PAGE)
+        )
+        _LOGGER.debug("UltraSync installer details found: %s", sorted(info))
+        return info
+
     def mark_outputs_stale(self) -> None:
         """Read the outputs again on the next poll (after a command)."""
         self._outputs_read = 0.0
@@ -287,6 +358,10 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
             if not details:
                 self._panel_reachable = self._can_reach_panel()
                 return details
+
+            # Only installer logins can read these pages, so ask once
+            if self.panel_info is None and self.hub.vendor == "comnav":
+                self.panel_info = self._read_installer_info()
 
             # Outputs are only read at login, so read them again now and then
             # (ComNav panels are the only ones that have them)
