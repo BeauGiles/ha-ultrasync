@@ -3,7 +3,8 @@
         "abort": {
             "single_instance_allowed": "Already configured. Only a single configuration possible.",
             "unknown": "Unexpected error",
-            "reconfigure_successful": "Re-configuration was successful"
+            "reconfigure_successful": "Re-configuration was successful",
+            "reauth_successful": "Re-authentication was successful"
         },
         "error": {
             "cannot_connect": "Failed to connect"
@@ -25,6 +26,14 @@
                 "description": "Update the details used to log in to your alarm panel. They are checked against the panel before they are saved.",
                 "data": {
                     "host": "Host",
+                    "username": "Username",
+                    "pin": "PIN Code"
+                }
+            },
+            "reauth_confirm": {
+                "title": "Log in to UltraSync again",
+                "description": "The panel at {host} no longer accepts the saved login. Enter the username and PIN you use for its web page.",
+                "data": {
                     "username": "Username",
                     "pin": "PIN Code"
                 }
