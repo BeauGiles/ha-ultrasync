@@ -20,6 +20,14 @@
           "username": "[%key:common::config_flow::data::username%]",
           "pin": "[%key:common::config_flow::data::pin%]"
         }
+      },
+      "reauth_confirm": {
+        "title": "Log in to UltraSync again",
+        "description": "The panel at {host} no longer accepts the saved login. Enter the username and PIN you use for its web page.",
+        "data": {
+          "username": "[%key:common::config_flow::data::username%]",
+          "pin": "[%key:common::config_flow::data::pin%]"
+        }
       }
     },
     "error": {
@@ -28,7 +36,8 @@
     "abort": {
       "single_instance_allowed": "[%key:common::config_flow::abort::single_instance_allowed%]",
       "unknown": "[%key:common::config_flow::error::unknown%]",
-      "reconfigure_successful": "[%key:common::config_flow::abort::reconfigure_successful%]"
+      "reconfigure_successful": "[%key:common::config_flow::abort::reconfigure_successful%]",
+      "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]"
     }
   },
   "options": {

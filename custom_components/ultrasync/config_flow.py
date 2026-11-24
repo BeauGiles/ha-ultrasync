@@ -39,6 +39,15 @@ RECONFIGURE_SCHEMA = vol.Schema(
 )
 
 
+# The details that change when the panel stops accepting the saved login.
+REAUTH_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_USERNAME): str,
+        vol.Required(CONF_PIN): PIN_SELECTOR,
+    }
+)
+
+
 class AuthFailureException(IOError):
     """A general exception we can use to track Authentication failures."""
 
@@ -112,6 +121,50 @@ class UltraSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_PIN): PIN_SELECTOR,
                 }
             ),
+            errors=errors,
+        )
+
+    async def async_step_reauth(
+        self, entry_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Start when the panel no longer accepts the saved login."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: Optional[ConfigType] = None
+    ) -> Dict[str, Any]:
+        """Ask for the username and PIN again."""
+        entry = self._get_reauth_entry()
+        errors = {}
+
+        if user_input is not None:
+            data = {**entry.data, **user_input}
+            try:
+                await self.hass.async_add_executor_job(validate_input, self.hass, data)
+
+            except AuthFailureException:
+                errors["base"] = "cannot_connect"
+
+            except Exception:  # pylint: disable=broad-except
+                _LOGGER.exception("Unexpected exception")
+                return self.async_abort(reason="unknown")
+
+            else:
+                # A running integration reloads itself when its details
+                # change; one that never started is started again here
+                was_loaded = entry.state is ConfigEntryState.LOADED
+                self.hass.config_entries.async_update_entry(entry, data=data)
+                if not was_loaded:
+                    self.hass.config_entries.async_schedule_reload(entry.entry_id)
+
+                return self.async_abort(reason="reauth_successful")
+
+        # The PIN is left blank, so it is never sent back to the browser
+        suggested = {CONF_USERNAME: (user_input or entry.data).get(CONF_USERNAME)}
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=self.add_suggested_values_to_schema(REAUTH_SCHEMA, suggested),
+            description_placeholders={"host": entry.data[CONF_HOST]},
             errors=errors,
         )
 
