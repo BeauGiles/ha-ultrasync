@@ -22,7 +22,7 @@ from .entity import UltraSyncEntity
 # are matched in this order, so "Battery Test Fail" counts as a battery
 # problem only.
 PROBLEMS = {
-    "low_battery": ("Low battery", BinarySensorDeviceClass.BATTERY, ("battery",)),
+    "low_battery": ("Battery", BinarySensorDeviceClass.BATTERY, ("battery",)),
     "tamper": ("Tamper", BinarySensorDeviceClass.TAMPER, ("tamper", "antimask")),
     "bypassed": ("Zones bypassed", None, ("bypass", "inhibit")),
     "trouble": (
