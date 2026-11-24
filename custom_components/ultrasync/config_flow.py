@@ -158,8 +158,15 @@ class UltraSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 # A running integration reloads itself when its details
                 # change; one that never started is started again here
                 was_loaded = entry.state is ConfigEntryState.LOADED
-                self.hass.config_entries.async_update_entry(entry, data=data)
-                if not was_loaded:
+                changed = self.hass.config_entries.async_update_entry(
+                    entry, data=data
+                )
+
+                # A running integration reloads itself when its details
+                # change. Reload here when they did not (the same PIN was
+                # entered again, so polling was never restarted) or when the
+                # integration never started.
+                if not (changed and was_loaded):
                     self.hass.config_entries.async_schedule_reload(entry.entry_id)
 
                 return self.async_abort(reason="reauth_successful")
