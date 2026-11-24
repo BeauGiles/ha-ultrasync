@@ -5,6 +5,8 @@ import logging
 import threading
 import time
 
+import requests
+
 try:
     # Python 3.11+ has this built in; newer Home Assistant no longer ships
     # the async_timeout package
@@ -14,7 +16,9 @@ except ImportError:
     from async_timeout import timeout
 
 from homeassistant.const import CONF_HOST, CONF_PIN, CONF_SCAN_INTERVAL, CONF_USERNAME
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 import ultrasync
@@ -26,6 +30,11 @@ _LOGGER = logging.getLogger(__name__)
 # The library only reads the outputs page when it logs in, so a ComNav
 # panel's outputs are read again this often (and right after a command)
 OUTPUT_REFRESH_SECONDS = 30
+
+# How many reads in a row the panel must refuse, while still answering on the
+# network, before we ask the user to log in again. A panel also refuses a
+# login for a moment when it has run out of sessions, so one miss proves little.
+AUTH_FAILURES_BEFORE_REAUTH = 3
 
 
 def _read_poll_outcome(poll: asyncio.Future) -> None:
@@ -42,7 +51,14 @@ def _read_poll_outcome(poll: asyncio.Future) -> None:
 class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching UltraSync data."""
 
-    def __init__(self, hass: HomeAssistant, *, config: dict, options: dict):
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        *,
+        config: dict,
+        options: dict,
+        config_entry: ConfigEntry,
+    ):
         """Initialize global UltraSync data updater."""
         self.hub = ultrasync.UltraSync(
             user=config[CONF_USERNAME],
@@ -51,6 +67,11 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
         )
 
         self._init = False
+
+        # Whether the panel answered on the network during the last failed
+        # read, and how many reads in a row failed that way
+        self._panel_reachable = False
+        self._auth_failures = 0
 
         # Polls and alarm panel commands run in different worker threads, but
         # share one panel session; this lock makes them take turns
@@ -84,6 +105,7 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER,
             name=DOMAIN,
             update_interval=update_interval,
+            config_entry=config_entry,
         )
 
     async def _async_update_data(self) -> dict:
@@ -115,7 +137,25 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
         # Assistant shows the entities as unavailable, keeps the last
         # good data and tries again on the next poll.
         if not details:
+            # A panel that answers but keeps refusing the login most likely
+            # has a changed PIN or username: ask the user to log in again.
+            # An offline panel only counts as a failed update.
+            if self._panel_reachable:
+                self._auth_failures += 1
+            else:
+                self._auth_failures = 0
+
+            # The very first read has no earlier good data, so it does not
+            # wait for repeated misses
+            limit = 1 if not self._init else AUTH_FAILURES_BEFORE_REAUTH
+            if self._auth_failures >= limit:
+                raise ConfigEntryAuthFailed(
+                    "The UltraSync panel refused the saved login"
+                )
+
             raise UpdateFailed("Unable to read the UltraSync panel")
+
+        self._auth_failures = 0
 
         # Update our details
         if details:
@@ -245,6 +285,7 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
         with self.hub_lock:
             details = self.hub.details(max_age_sec=0)
             if not details:
+                self._panel_reachable = self._can_reach_panel()
                 return details
 
             # Outputs are only read at login, so read them again now and then
@@ -273,3 +314,17 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
                 details["history_data"] = list(self.hub.history_data.values())
 
             return details
+
+    def _can_reach_panel(self) -> bool:
+        """Return True if the panel's web server answers at all."""
+        # Any HTTP answer (even an error page) shows the panel is online, so
+        # the failed read was down to the login
+        try:
+            requests.get(
+                self.hub.url, timeout=3, verify=self.hub.verify, allow_redirects=False
+            )
+
+        except requests.RequestException:
+            return False
+
+        return True

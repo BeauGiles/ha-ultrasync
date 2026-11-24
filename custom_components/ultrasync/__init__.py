@@ -5,7 +5,6 @@ import asyncio
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
 from ultrasync import AlarmScene
 import voluptuous as vol
 
@@ -51,12 +50,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass,
         config=entry.data,
         options=entry.options,
+        config_entry=entry,
     )
 
-    await coordinator.async_refresh()
-
-    if not coordinator.last_update_success:
-        raise ConfigEntryNotReady
+    # Raises ConfigEntryNotReady if the panel is offline, and starts a
+    # re-login prompt if the panel refuses the saved details
+    await coordinator.async_config_entry_first_refresh()
 
     hass.data[DOMAIN][entry.entry_id] = {
         DATA_COORDINATOR: coordinator,
