@@ -7,7 +7,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_NAME
+from homeassistant.const import CONF_NAME, EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from ultrasync.common import ZoneStatus
@@ -142,6 +142,12 @@ class UltraSyncProblemBinarySensor(UltraSyncEntity, BinarySensorEntity):
 
         # The name (and icon) come from strings.json and icons.json
         self._attr_translation_key = key
+
+        # A low battery is something to check now and then, not part of the
+        # alarm itself. Tamper, trouble and bypassed zones stay with the main
+        # sensors, since they affect the security of the system.
+        if key == "low_battery":
+            self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._attr_unique_id = f"{entry_id}_problem_{key}"
 
         super().__init__(
@@ -149,6 +155,14 @@ class UltraSyncProblemBinarySensor(UltraSyncEntity, BinarySensorEntity):
             entry_id=entry_id,
             entry_name=entry_name,
         )
+
+    def _explained(self) -> bool:
+        """Return True if any zone, area or system fault names its problem."""
+        coordinator = self.coordinator
+        texts = [z.get("status") for z in coordinator.zones]
+        texts += list(coordinator.system_faults)
+        texts += [a.get("status") for a in coordinator.areas]
+        return any(classify_problem(text) for text in texts)
 
     def _affected(self) -> list[str]:
         """Return the zones and areas that report this problem."""
@@ -165,16 +179,20 @@ class UltraSyncProblemBinarySensor(UltraSyncEntity, BinarySensorEntity):
 
         for area in self.coordinator.areas:
             status = area.get("status")
-            kind = classify_problem(status)
-            if kind is None and area.get("priority") == AREA_PROBLEM_PRIORITY:
-                # The panel has a problem but the area is showing something
-                # else (for example it is armed), so the kind is not known
-                kind = "trouble"
-                status = "Problem reported by the panel"
-
-            if kind == self._key:
+            if classify_problem(status) == self._key:
                 name = (area.get("name") or "").strip() or f"Area {area['bank'] + 1}"
                 affected.append(f"{name}: {status}")
+
+        # The panel flags an area as having a problem even while the area is
+        # armed and its status text shows something else. If nothing above
+        # says what the problem is, report it as general trouble. When
+        # something does (a low battery, say), that sensor shows it and
+        # Trouble stays off.
+        if self._key == "trouble" and not self._explained():
+            for area in self.coordinator.areas:
+                if area.get("priority") == AREA_PROBLEM_PRIORITY:
+                    name = (area.get("name") or "").strip() or f"Area {area['bank'] + 1}"
+                    affected.append(f"{name}: Problem reported by the panel")
 
         return affected
 
