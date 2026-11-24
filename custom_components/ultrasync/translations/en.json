@@ -7,7 +7,8 @@
             "reauth_successful": "Re-authentication was successful"
         },
         "error": {
-            "cannot_connect": "Failed to connect"
+            "cannot_connect": "Failed to connect",
+            "invalid_mac": "Enter a MAC address such as 54:10:EC:07:AB:86"
         },
         "flow_title": "Interlogix UltraSync Hub: {name}",
         "step": {
@@ -27,7 +28,11 @@
                 "data": {
                     "host": "Host",
                     "username": "Username",
-                    "pin": "PIN Code"
+                    "pin": "PIN Code",
+                    "mac": "MAC address (optional)"
+                },
+                "data_description": {
+                    "mac": "Shown on the device page. Leave empty if you don't want one."
                 }
             },
             "reauth_confirm": {

@@ -24,7 +24,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 import ultrasync
 
-from .const import DOMAIN, SENSOR_UPDATE_LISTENER
+from .const import CONF_MAC, DOMAIN, SENSOR_UPDATE_LISTENER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -98,6 +98,9 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
         )
 
         self._init = False
+
+        # The MAC address the user typed in (if any)
+        self.manual_mac = config.get(CONF_MAC)
 
         # Whether the panel answered on the network during the last failed
         # read, and how many reads in a row failed that way

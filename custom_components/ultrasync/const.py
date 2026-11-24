@@ -2,6 +2,9 @@
 
 DOMAIN = "ultrasync"
 
+# Optional: the panel's MAC address, typed in by the user
+CONF_MAC = "mac"
+
 # Scan Time (in seconds)
 DEFAULT_SCAN_INTERVAL = 1
 
