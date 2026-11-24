@@ -17,7 +17,7 @@ except ImportError:
     from async_timeout import timeout
 
 from homeassistant.const import CONF_HOST, CONF_PIN, CONF_SCAN_INTERVAL, CONF_USERNAME
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -112,6 +112,9 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
         # When the current run of refused logins began (monotonic seconds)
         self._refused_since = None
 
+        # True while a re-login prompt that we started may still be open
+        self._reauth_started = False
+
         # Polls and alarm panel commands run in different worker threads, but
         # share one panel session; this lock makes them take turns
         self.hub_lock = threading.Lock()
@@ -197,16 +200,34 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
                 if self._refused_since is not None
                 else None
             )
-            if refused_for is not None and (
-                not self._init or refused_for >= AUTH_REFUSED_SECONDS
-            ):
+            if refused_for is not None and not self._init:
+                # Nothing is running yet, so this fails the setup, which
+                # starts the re-login prompt
                 raise ConfigEntryAuthFailed(
                     "The UltraSync panel refused the saved login"
                 )
 
+            if refused_for is not None and refused_for >= AUTH_REFUSED_SECONDS:
+                # Ask the user to log in again, but keep polling. Raising
+                # ConfigEntryAuthFailed here would stop all further polls
+                # until the integration is reloaded, even after the login
+                # works again.
+                if not self._reauth_started:
+                    self._reauth_started = True
+                    self.config_entry.async_start_reauth(self.hass)
+
             raise UpdateFailed("Unable to read the UltraSync panel")
 
         self._refused_since = None
+
+        # The panel accepts the login again: close a re-login prompt that is
+        # still waiting
+        if self._reauth_started:
+            self._reauth_started = False
+            for flow in self.config_entry.async_get_active_flows(
+                self.hass, {SOURCE_REAUTH}
+            ):
+                self.hass.config_entries.flow.async_abort(flow["flow_id"])
 
         # Update our details
         if details:
