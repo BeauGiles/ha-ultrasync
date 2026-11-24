@@ -43,6 +43,10 @@ def panel_device_info(coordinator, entry_id: str, entry_name: str) -> DeviceInfo
 class UltraSyncEntity(CoordinatorEntity):
     """Base class for a UltraSync entity."""
 
+    # Entity names are just the item's own name (for example "Front Door");
+    # Home Assistant puts the device name in front of it
+    _attr_has_entity_name = True
+
     def __init__(
         self,
         *,

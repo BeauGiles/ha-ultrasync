@@ -78,7 +78,9 @@ There are several states each Zone and Area sensor can be at, but usually they w
 
 The state of Output sensors will ALWAYS remain `0` whether it has been turned on or off. This is normal, the Output sensor simply acts as an entity to activate the `switch` service.
 
-The state of History sensors will be updated whenever the Area sensor changes, so generally will be either one of `Turn off` or `Turn on`.
+History sensors are timestamp sensors: the state is the time of the latest history line for the area, and the `action` (for example `Turn on`), `user` and `area_name` are attributes. They update whenever the Area sensor changes.
+
+The zone, area, output and history sensors are listed under **Diagnostics** on the device page, since the alarm control panel and binary sensors show the same things.
 
 ### Binary Sensors, Switches and Buttons
 

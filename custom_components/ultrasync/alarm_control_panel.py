@@ -87,7 +87,7 @@ class UltraSyncAlarmControlPanel(UltraSyncEntity, AlarmControlPanelEntity):
             coordinator=coordinator,
             entry_id=entry_id,
             entry_name=entry_name,
-            name=f"{entry_name} {area['name']}",
+            name=(area.get("name") or "").strip() or f"Area {self._bank + 1}",
         )
 
     @property
