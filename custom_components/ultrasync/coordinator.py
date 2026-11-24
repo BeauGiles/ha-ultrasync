@@ -46,11 +46,31 @@ AUTH_REFUSED_SECONDS = 300
 FEATURES_PAGE = "/protect/config1.htm"
 NETWORK_PAGE = "/protect/config5.htm"
 
+# The panel lists its system faults ("System Low Battery", "Battery Test Fail")
+# in the status page. The library keeps them, but only shows one in the area
+# status when nothing else applies, so a disarmed "Ready" area hides them.
+STATUS_PAGE = "/user/status.xml"
+SYSTEM_FAULTS_RE = re.compile(r"<sysflt>(.*?)</sysflt>", re.S | re.I)
+NO_FAULTS = "no system faults"
+
+# How often the faults are read (ComNav panels)
+SYSTEM_FAULTS_REFRESH_SECONDS = 30
+
 MAC_RE = re.compile(r'id="mac"[^>]*value="([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})"')
 
 # The read-only boxes on the features page, in the order the panel lists them:
 # device id, firmware, hardware, bootload, web version, voice, language
 READONLY_RE = re.compile(r'<p>[^<]*</p><input[^>]*value="([^"]*)"[^>]*readonly')
+
+
+def parse_system_faults(status_xml: str) -> list:
+    """Return the system faults listed on the status page."""
+    match = SYSTEM_FAULTS_RE.search(status_xml or "")
+    if not match:
+        return []
+
+    faults = [line.strip() for line in re.split(r"\r*\n", match.group(1))]
+    return [f for f in faults if f and f.lower() != NO_FAULTS]
 
 
 def parse_installer_info(features: str, network: str) -> dict:
@@ -129,6 +149,11 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
         # they have been tried (once per start); empty if the login is not
         # allowed to read them.
         self.panel_info = None
+
+        # The system faults the panel reports, and when they were last read
+        # (monotonic seconds)
+        self.system_faults = []
+        self._faults_read = 0.0
 
         # When the outputs were last read (monotonic seconds)
         self._outputs_read = 0.0
@@ -348,13 +373,13 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
 
         return await self.hass.async_add_executor_job(_call)
 
-    def _read_page(self, path: str):
+    def _read_page(self, path: str, data: dict = None):
         """Read one panel page, without logging in again if it is refused."""
         hub = self.hub
         try:
             response = hub.session.post(
                 f"{hub.url}{path}",
-                data={"sess": hub.session_id},
+                data={"sess": hub.session_id, **(data or {})},
                 auth=hub.auth,
                 headers={
                     "Referer": f"http://{hub.host}/login.htm",
@@ -374,6 +399,19 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
             return None
 
         return response.content.decode(hub.panel_encoding, errors="replace")
+
+    def _read_system_faults(self) -> None:
+        """Read the panel's system faults, keeping the last ones on a failure."""
+        page = self._read_page(STATUS_PAGE, {"arsel": 0})
+        if page is None:
+            return
+
+        faults = parse_system_faults(page)
+        if faults != self.system_faults:
+            _LOGGER.debug("UltraSync system faults: %s", faults)
+
+        self.system_faults = faults
+        self._faults_read = time.monotonic()
 
     def _read_installer_info(self) -> dict:
         """Read the firmware, hardware and MAC, if this login may see them."""
@@ -398,6 +436,13 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
             # Only installer logins can read these pages, so ask once
             if self.panel_info is None and self.hub.vendor == "comnav":
                 self.panel_info = self._read_installer_info()
+
+            # System faults (ComNav panels)
+            if (
+                self.hub.vendor == "comnav"
+                and time.monotonic() - self._faults_read >= SYSTEM_FAULTS_REFRESH_SECONDS
+            ):
+                self._read_system_faults()
 
             # Outputs are only read at login, so read them again now and then
             # (ComNav panels are the only ones that have them)
