@@ -44,7 +44,7 @@ def classify_problem(text: Any) -> Optional[str]:
         return None
 
     text = text.lower()
-    for key, (_, _, words) in PROBLEMS.items():
+    for key, (_, words) in PROBLEMS.items():
         if any(word in text for word in words):
             return key
 
@@ -137,15 +137,17 @@ class UltraSyncProblemBinarySensor(UltraSyncEntity, BinarySensorEntity):
     ) -> None:
         """Initialize a panel problem sensor."""
         self._key = key
-        name, device_class, _ = PROBLEMS[key]
+        device_class, _ = PROBLEMS[key]
         self._attr_device_class = device_class
+
+        # The name (and icon) come from strings.json and icons.json
+        self._attr_translation_key = key
         self._attr_unique_id = f"{entry_id}_problem_{key}"
 
         super().__init__(
             coordinator=coordinator,
             entry_id=entry_id,
             entry_name=entry_name,
-            name=name,
         )
 
     def _affected(self) -> list[str]:

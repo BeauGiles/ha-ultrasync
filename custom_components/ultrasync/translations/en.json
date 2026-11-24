@@ -53,5 +53,40 @@
                 }
             }
         }
+    },
+    "entity": {
+        "binary_sensor": {
+            "low_battery": {
+                "name": "Battery"
+            },
+            "tamper": {
+                "name": "Tamper"
+            },
+            "bypassed": {
+                "name": "Zones bypassed"
+            },
+            "trouble": {
+                "name": "Trouble"
+            }
+        },
+        "button": {
+            "fire": {
+                "name": "Fire alarm"
+            },
+            "medical": {
+                "name": "Medical alarm"
+            },
+            "panic": {
+                "name": "Panic alarm"
+            }
+        },
+        "switch": {
+            "chime": {
+                "name": "{area} chime"
+            },
+            "bypass": {
+                "name": "{zone} bypass"
+            }
+        }
     }
 }

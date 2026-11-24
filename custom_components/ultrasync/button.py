@@ -12,11 +12,11 @@ from .const import DATA_COORDINATOR, DEFAULT_NAME, DOMAIN
 from .coordinator import UltraSyncDataUpdateCoordinator
 from .entity import UltraSyncEntity
 
-# (key, name, alarm to raise)
+# (key, alarm to raise); the names are in strings.json
 ALARMS = (
-    ("fire", "Fire alarm", AlarmScene.FIRE),
-    ("medical", "Medical alarm", AlarmScene.MEDICAL),
-    ("panic", "Panic alarm", AlarmScene.PANIC),
+    ("fire", AlarmScene.FIRE),
+    ("medical", AlarmScene.MEDICAL),
+    ("panic", AlarmScene.PANIC),
 )
 
 
@@ -51,18 +51,17 @@ class UltraSyncAlarmButton(UltraSyncEntity, ButtonEntity):
         entry_id: str,
         entry_name: str,
         key: str,
-        name: str,
         scene: str,
     ) -> None:
         """Initialize an alarm button."""
         self._scene = scene
         self._attr_unique_id = f"{entry_id}_button_{key}"
+        self._attr_translation_key = key
 
         super().__init__(
             coordinator=coordinator,
             entry_id=entry_id,
             entry_name=entry_name,
-            name=name,
         )
 
     async def async_press(self) -> None:
