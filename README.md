@@ -87,7 +87,7 @@ The zone, area, output and history sensors are listed under **Diagnostics** on t
 On top of the sensors above, the integration adds:
 
 - **Zone binary sensors**, one per zone and named after the zone on the panel (for example `binary_sensor.ultrasync_front_door`). They are on while the zone is `Not Ready` (open or triggered); the panel's own status text is in the `status` attribute. Change the device class in the entity's settings to suit the zone (door, window, motion, and so on).
-- **Panel problem sensors**: `Tamper`, `Trouble`, `Low battery` and `Zones bypassed`. Each is on while any zone reports that status, and the `zones` attribute lists which. A zone shows only one status at a time, so a zone that is open and tampered shows as `Not Ready`.
+- **Panel problem sensors**: `Low battery`, `Tamper`, `Zones bypassed` and `Trouble`. Each is on while a zone or area reports that kind of problem in its status text (for example `System Low Battery`, `Battery Test Fail` or `Sensor Tamper`), and the `reported_by` attribute says which. The panel shows only one status at a time, so while an area is armed or in alarm its problem text is hidden; the panel still flags that something is wrong, so `Trouble` turns on in that case.
 - **Chime switch** per area.
 - **Output switches** (ComNav panels only) to turn outputs on and off. The panel's outputs are read about every 30 seconds, and right after a switch is used.
 - **Zone bypass switches** (ZeroWire, xGen8 and ComNav panels). These are **disabled by default**; enable them in the entity settings.
