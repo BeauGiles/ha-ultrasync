@@ -45,7 +45,7 @@ If your panel moves to a new address, or you change the user or PIN it logs in w
 
 ### Options
 
-Click **Configure** on the UltraSync integration to change the **Update frequency (seconds)**: how often Home Assistant reads your panel. The default is 1 second; it can be set from 1 up to 86400 (one day).
+Click **Configure** on the UltraSync integration to change the **Update frequency (seconds)**: how often Home Assistant reads your panel. The default is 5 seconds (for new setups; existing ones keep their setting); it can be set from 1 up to 86400 (one day).
 
 ### Sensor
 
